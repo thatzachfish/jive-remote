@@ -52,7 +52,7 @@ button:focus-visible,.vslider:focus-visible,input:focus-visible{outline:2px soli
 .alert b{color:var(--fuchsia);font-weight:600}
 
 /* main */
-.main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(104px,36%) 1fr;gap:14px}
+.main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(92px,34%) minmax(0,1fr);gap:12px}
 .sliderCol{display:flex;flex-direction:column;align-items:stretch;gap:8px;min-height:0}
 .readout{display:flex;align-items:baseline;justify-content:space-between;gap:4px}
 .readout .num{font-family:var(--mono);font-size:30px;font-weight:500;font-variant-numeric:tabular-nums;line-height:1}
@@ -69,7 +69,7 @@ button:focus-visible,.vslider:focus-visible,input:focus-visible{outline:2px soli
 .legend .g::before{background:var(--green)} .legend .y::before{background:var(--yellow)}
 
 .panelCol{display:flex;flex-direction:column;gap:12px;min-height:0;min-width:0}
-.tabs{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
 .tabs button{padding:10px 4px;font-size:14px;color:var(--dim);background:var(--panel);position:relative}
 .tabs button+button{border-left:1px solid var(--line)}
 .tabs button[aria-selected=true]{color:var(--bg);background:var(--green)}
@@ -78,14 +78,20 @@ button:focus-visible,.vslider:focus-visible,input:focus-visible{outline:2px soli
 .h{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
 .group{display:flex;flex-direction:column;gap:8px}
 .row{display:flex;flex-wrap:wrap;gap:6px}
-.btn{padding:10px 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--raise);font-size:14px;min-height:42px}
+.btn{min-width:0;overflow-wrap:anywhere;line-height:1.2;padding:10px 8px;border:1px solid var(--line);border-radius:var(--r);background:var(--raise);font-size:14px;min-height:42px}
 .btn.wide{flex:1}
 .btn[aria-pressed=true]{border-color:var(--green);color:var(--green);background:#16261a}
 .btn.go{background:var(--green);color:var(--bg);border-color:var(--green)}
 .btn.warn{border-color:var(--fuchsia);color:var(--fuchsia)}
-.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
-.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+.grid4{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}
+.grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.panel>*{min-width:0}
+.range label{gap:6px}
+.tapBtn{min-height:96px;font-size:18px;border-color:var(--yellow-dim)}
+.tapBtn.hit{background:var(--yellow);color:var(--bg)}
+.bpmRow{display:grid;grid-template-columns:48px minmax(0,1fr) 48px;gap:6px;align-items:center}
+.bpm{text-align:center;font-family:var(--mono);font-size:18px;color:var(--yellow)}
 .note{font-size:13px;color:var(--dim);line-height:1.45;font-family:var(--display);font-weight:400}
 .note b{color:var(--fg);font-weight:500}
 .range{display:flex;flex-direction:column;gap:4px}
@@ -95,7 +101,7 @@ input[type=range]{width:100%;accent-color:var(--yellow);height:28px}
 .song{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel);min-width:0}
 .song .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
 .song .tm{font-family:var(--mono);font-size:12px;color:var(--dim)}
-.scope{height:44px;width:100%;display:block;border:1px solid var(--line);border-radius:var(--r);background:var(--panel)}
+.scope{height:44px;width:100%;max-width:100%;display:block;border:1px solid var(--line);border-radius:var(--r);background:var(--panel)}
 .progress{height:6px;border-radius:3px;background:var(--raise);overflow:hidden}
 .progress i{display:block;height:100%;width:0;background:var(--yellow)}
 .fadeNow{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid var(--yellow-dim);border-radius:var(--r);background:#1a1a10}
@@ -183,9 +189,20 @@ ol.note{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
       <div class="panel" id="p-music" hidden>
         <div class="group">
           <div class="h">Source</div>
-          <div class="grid2">
-            <button class="btn" id="pickSong">Play a song</button>
-            <button class="btn" id="useMic">Microphone</button>
+          <div class="grid3">
+            <button class="btn" id="pickSong">Song</button>
+            <button class="btn" id="useMic">Mic</button>
+            <button class="btn" id="useTap">Tap beat</button>
+          </div>
+          <div class="group" id="tapBox" hidden>
+            <button class="btn tapBtn" id="tapBtn">Tap with the beat</button>
+            <div class="bpmRow"><button class="btn" id="bpmDown" aria-label="Slower">−</button><span class="bpm" id="bpmV">tap 4×</span><button class="btn" id="bpmUp" aria-label="Faster">+</button></div>
+            <div class="h">Feel</div>
+            <div class="grid3">
+              <button class="btn" data-feel="punch" aria-pressed="true">Punch</button>
+              <button class="btn" data-feel="pulse" aria-pressed="false">Pulse</button>
+              <button class="btn" data-feel="sway" aria-pressed="false">Sway</button>
+            </div>
           </div>
           <input type="file" id="songFile" accept="audio/*" hidden>
           <audio id="audio" preload="auto"></audio>
@@ -201,7 +218,7 @@ ol.note{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
           <div class="grid3">
             <button class="btn" data-band="beat" aria-pressed="true">Beat</button>
             <button class="btn" data-band="voice" aria-pressed="false">Melody</button>
-            <button class="btn" data-band="all" aria-pressed="false">Everything</button>
+            <button class="btn" data-band="all" aria-pressed="false">All</button>
           </div>
         </div>
         <div class="range"><label for="sens">Sensitivity <span id="sensV">100%</span></label>
@@ -213,7 +230,7 @@ ol.note{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
         <div class="range"><label for="delay">Speaker delay <span id="delayV">0 ms</span></label>
           <input type="range" id="delay" min="0" max="500" step="10" value="0"></div>
         <p class="note">Playing a song through a <b>Bluetooth speaker</b>? Its sound arrives a little late. Raise Speaker delay until the buzz lands with the beat (usually 150–250 ms).</p>
-        <p class="note">Music from <b>another app</b> (Spotify and so on): use <b>Microphone</b> and keep the phone near the speaker.</p>
+        <p class="note"><b>YouTube Music or another app:</b> on a speaker, use <b>Mic</b> with the phone near it. On headphones, use <b>Tap beat</b>: tap along a few times and it keeps the rhythm for you.</p>
         <p class="note">While music sync is on, the tall bar sets the <b>maximum</b>. The music moves the level between your floor and that maximum.</p>
       </div>
 
@@ -222,35 +239,43 @@ ol.note{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
         <div class="fadeNow" id="fadeNow" hidden>
           <div class="top2"><span id="fadeName">Build</span><span class="tm" id="fadeLeft">0:00</span></div>
           <div class="progress"><i id="fadeProg"></i></div>
-          <button class="btn warn" id="fadeCancel">Cancel fade (hold level)</button>
+          <button class="btn warn" id="fadeCancel">Stop here (hold level)</button>
         </div>
         <div class="group">
-          <div class="h">Shape</div>
+          <div class="h">One-time fades</div>
           <div class="grid2">
             <button class="btn" data-shape="build" aria-pressed="true">Build up</button>
             <button class="btn" data-shape="down" aria-pressed="false">Wind down</button>
-            <button class="btn" data-shape="swell" aria-pressed="false">Swell</button>
+          </div>
+          <div class="h">Patterns (run until you stop them)</div>
+          <div class="grid2">
             <button class="btn" data-shape="waves" aria-pressed="false">Waves</button>
+            <button class="btn" data-shape="surf" aria-pressed="false">Surf</button>
+            <button class="btn" data-shape="climb" aria-pressed="false">Climb</button>
+            <button class="btn" data-shape="heart" aria-pressed="false">Heartbeat</button>
+            <button class="btn" data-shape="throb" aria-pressed="false">Throb</button>
+            <button class="btn" data-shape="flutter" aria-pressed="false">Flutter</button>
           </div>
           <div class="note" id="shapeNote"></div>
         </div>
         <div class="group" id="lenWrap">
           <div class="h">Length</div>
           <div class="grid3">
-            <button class="btn" data-dur="5">5 sec</button><button class="btn" data-dur="10" aria-pressed="true">10 sec</button>
-            <button class="btn" data-dur="30">30 sec</button>
+            <button class="btn" data-dur="5">5 sec</button><button class="btn" data-dur="15" aria-pressed="true">15 sec</button>
+            <button class="btn" data-dur="30">30 sec</button><button class="btn" data-dur="45">45 sec</button>
+            <button class="btn" data-dur="60">1 min</button>
           </div>
         </div>
         <div class="range" id="peakWrap"><label for="peak">Peak <span id="peakV">70%</span></label>
           <input type="range" id="peak" min="10" max="100" step="5" value="70"></div>
         <div class="group" id="speedWrap" hidden>
-          <div class="h">Wave speed</div>
+          <div class="h">Speed</div>
           <div class="grid3">
-            <button class="btn" data-speed="6">Slow</button><button class="btn" data-speed="3" aria-pressed="true">Medium</button><button class="btn" data-speed="1.2">Fast</button>
+            <button class="btn" data-speed="1.6">Slow</button><button class="btn" data-speed="1" aria-pressed="true">Medium</button><button class="btn" data-speed="0.55">Fast</button>
           </div>
         </div>
-        <button class="btn go" id="fadeStart">Start fade</button>
-        <p class="note">Touching the tall bar stops a fade and keeps the level where you put it.</p>
+        <button class="btn go" id="fadeStart">Start</button>
+        <p class="note">Peak and Speed change a running pattern live. Touching the tall bar stops it and keeps the level where you put it.</p>
       </div>
     </section>
   </main>
@@ -719,6 +744,7 @@ function startMusic(kind) {
   M.active = true; M.kind = kind; M.peak = .05; M.env = 0;
   $('musicOn').hidden = false; $('musicStop').hidden = false;
   $('pickSong').setAttribute('aria-pressed', kind === 'song'); $('useMic').setAttribute('aria-pressed', kind === 'mic');
+  $('useTap').setAttribute('aria-pressed', kind === 'tap'); $('tapBox').hidden = kind !== 'tap';
   $('sliderLbl').textContent = 'Max';
   if (S.set < .05) setLevel(.7);
   wake();
@@ -727,9 +753,44 @@ function stopMusic() {
   M.active = false; stopMic(); audio.pause();
   $('musicOn').hidden = true; $('musicStop').hidden = true;
   $('pickSong').setAttribute('aria-pressed', false); $('useMic').setAttribute('aria-pressed', false);
+  $('useTap').setAttribute('aria-pressed', false); $('tapBox').hidden = true;
   $('sliderLbl').textContent = 'Level';
 }
 $('musicStop').onclick = stopMusic;
+
+const T = { taps: [], beat: 0, anchor: 0, feel: store.get('feel', 'punch') };
+$('useTap').onclick = () => { stopMic(); audio.pause(); $('songRow').hidden = true; startMusic('tap'); };
+function showBpm() { $('bpmV').textContent = T.beat ? Math.round(60000 / T.beat) + ' BPM' : 'tap 4×'; }
+$('tapBtn').addEventListener('pointerdown', e => {
+  e.preventDefault();
+  const now = performance.now();
+  if (T.taps.length && now - T.taps[T.taps.length - 1] > 2000) T.taps = [];
+  T.taps.push(now); if (T.taps.length > 8) T.taps.shift();
+  if (T.taps.length >= 2) {
+    const gaps = []; for (let i = 1; i < T.taps.length; i++) gaps.push(T.taps[i] - T.taps[i - 1]);
+    T.beat = clamp(gaps.reduce((a, b) => a + b, 0) / gaps.length, 250, 2000);
+  }
+  T.anchor = now;                                    // each tap re-lines the pulse up with you
+  $('tapBtn').classList.add('hit'); setTimeout(() => $('tapBtn').classList.remove('hit'), 90);
+  showBpm();
+});
+function nudgeBpm(d) { if (!T.beat) return; const bpm = clamp(Math.round(60000 / T.beat) + d, 30, 240); T.beat = 60000 / bpm; showBpm(); }
+$('bpmDown').onclick = () => nudgeBpm(-1);
+$('bpmUp').onclick = () => nudgeBpm(1);
+document.querySelectorAll('[data-feel]').forEach(b => {
+  b.setAttribute('aria-pressed', b.dataset.feel === T.feel);
+  b.onclick = () => { T.feel = b.dataset.feel; store.set('feel', T.feel); pressGroup('data-feel', T.feel); };
+});
+function tapLevel() {
+  const floor = +$('floor').value / 100;
+  if (!T.beat) return floor;
+  const p = (((performance.now() - T.anchor) / T.beat) % 1 + 1) % 1;
+  let e;
+  if (T.feel === 'punch') e = Math.exp(-p * 7);                 // sharp hit that dies away
+  else if (T.feel === 'pulse') e = p < 0.5 ? 1 - p * 1.2 : 0.8 * (1 - p);   // longer, rounder hit
+  else e = roll(p);                                             // smooth sway, peaks between beats
+  return floor + (1 - floor) * clamp(e);
+}
 document.querySelectorAll('[data-band]').forEach(b => {
   b.setAttribute('aria-pressed', b.dataset.band === M.band);
   b.onclick = () => { M.band = b.dataset.band; store.set('band', M.band); M.peak = .05;
@@ -758,6 +819,7 @@ function musicLevel(now) {
   return delayQ[0].t <= now - d ? delayQ[0].v : 0;
 }
 function rawMusicLevel() {
+  if (M.active && M.kind === 'tap') return tapLevel();
   if (!M.active || !M.analyser) return null;
   const playing = M.kind === 'mic' || !audio.paused;
   let e = 0;
@@ -791,30 +853,40 @@ function drawScope(v) {
   }
 }
 
-/* ---------- fades ---------- */
-const shapeNotes = {
-  build: 'Rises smoothly from where you are now up to the peak, then holds there.',
-  down: 'Eases from where you are now all the way to off.',
-  swell: 'Rises to the peak in the middle, then settles back to where you started.',
-  waves: 'Rolls up and down between a gentle low and the peak until you stop it.'
+/* ---------- fades & patterns ---------- */
+const SHAPES = {
+  build:   ['Build up',  'Rises smoothly from where you are now up to the peak, then holds there.'],
+  down:    ['Wind down', 'Eases from where you are now all the way to off.'],
+  waves:   ['Waves',     'Smooth, even rolls between a gentle low and the peak.'],
+  surf:    ['Surf',      'Overlapping swells that never quite repeat, like waves on a beach. Some big, some small.'],
+  climb:   ['Climb',     'Four waves, each one higher than the last, then a short pause before it starts again.'],
+  heart:   ['Heartbeat', 'A strong beat and a softer echo (lub-dub), then a rest.'],
+  throb:   ['Throb',     'Steady, firm pulses with a soft floor in between.'],
+  flutter: ['Flutter',   'Light, unpredictable flickers that wander around near the peak.']
 };
-let shape = store.get('shape', 'build'), durSec = +store.get('durS', 10), waveSec = +store.get('speedS', 3);
-if (![5, 10, 30].includes(durSec)) durSec = 10;
-if (![6, 3, 1.2].includes(waveSec)) waveSec = 3;
+const ONE_TIME = ['build', 'down'];
+let shape = store.get('shape', 'build'), durSec = +store.get('durS2', 15), speed = +store.get('spd', 1);
+if (!SHAPES[shape]) shape = 'build';
+if (![5, 15, 30, 45, 60].includes(durSec)) durSec = 15;
+if (![1.6, 1, 0.55].includes(speed)) speed = 1;
 function pressGroup(attr, val) { document.querySelectorAll('[' + attr + ']').forEach(b => b.setAttribute('aria-pressed', b.getAttribute(attr) == val)); }
 function updShape() {
-  pressGroup('data-shape', shape); $('shapeNote').textContent = shapeNotes[shape];
-  $('peakWrap').hidden = shape === 'down'; $('speedWrap').hidden = shape !== 'waves';
-  $('lenWrap').hidden = shape === 'waves';
+  pressGroup('data-shape', shape); $('shapeNote').textContent = SHAPES[shape][1];
+  const once = ONE_TIME.includes(shape);
+  $('peakWrap').hidden = shape === 'down'; $('speedWrap').hidden = once; $('lenWrap').hidden = !once;
 }
 document.querySelectorAll('[data-shape]').forEach(b => b.onclick = () => { shape = b.dataset.shape; store.set('shape', shape); updShape(); });
-document.querySelectorAll('[data-dur]').forEach(b => b.onclick = () => { durSec = +b.dataset.dur; store.set('durS', durSec); pressGroup('data-dur', durSec); });
-document.querySelectorAll('[data-speed]').forEach(b => b.onclick = () => { waveSec = +b.dataset.speed; store.set('speedS', waveSec); pressGroup('data-speed', waveSec); if (S.fade && S.fade.shape === 'waves') S.fade.wave = waveSec * 1000; });
-updShape(); pressGroup('data-dur', durSec); pressGroup('data-speed', waveSec);
+document.querySelectorAll('[data-dur]').forEach(b => b.onclick = () => { durSec = +b.dataset.dur; store.set('durS2', durSec); pressGroup('data-dur', durSec); });
+document.querySelectorAll('[data-speed]').forEach(b => b.onclick = () => { speed = +b.dataset.speed; store.set('spd', speed); pressGroup('data-speed', speed); });
+updShape(); pressGroup('data-dur', durSec); pressGroup('data-speed', speed);
 const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+const roll = x => 0.5 - 0.5 * Math.cos(2 * Math.PI * x);          // 0→1→0 over one cycle
+const bump = (p, c, w) => Math.exp(-Math.pow((p - c) / w, 2));
 $('fadeStart').onclick = () => {
-  S.fade = { shape, start: performance.now(), dur: shape === 'waves' ? Infinity : durSec * 1000, from: S.set, peak: +$('peak').value / 100, wave: waveSec * 1000 };
-  $('fadeName').textContent = { build: 'Build up', down: 'Wind down', swell: 'Swell', waves: 'Waves' }[shape];
+  const once = ONE_TIME.includes(shape);
+  S.fade = { shape, start: performance.now(), dur: once ? durSec * 1000 : Infinity, from: S.set,
+             peak: +$('peak').value / 100, fl: { cur: S.set, target: S.set, next: 0 }, phase: 0, last: performance.now() };
+  $('fadeName').textContent = SHAPES[shape][0];
   $('fadeNow').hidden = false; $('fadeOn').hidden = false;
   wake();
 };
@@ -823,20 +895,52 @@ $('fadeCancel').onclick = cancelFade;
 function stepFade(now) {
   const f = S.fade; if (!f) return;
   const el = now - f.start, t = clamp(el / f.dur);
+  // patterns read Peak live, and advance a phase clock so Speed changes don't jump
+  const P = f.shape === 'build' || f.shape === 'down' ? f.peak : +$('peak').value / 100;
+  f.phase += (now - f.last) / 1000 / speed; f.last = now;
+  const x = f.phase;                                  // "medium-speed seconds"
   let v;
-  if (f.shape === 'build') v = f.from + (f.peak - f.from) * ease(t);
-  else if (f.shape === 'down') v = f.from * (1 - ease(t));
-  else if (f.shape === 'swell') v = f.from + (f.peak - f.from) * Math.sin(Math.PI * t);
-  else { const low = f.peak * .25; v = low + (f.peak - low) * (0.5 - 0.5 * Math.cos(2 * Math.PI * el / f.wave)); }
+  switch (f.shape) {
+    case 'build': v = f.from + (f.peak - f.from) * ease(t); break;
+    case 'down':  v = f.from * (1 - ease(t)); break;
+    case 'waves': v = P * (0.25 + 0.75 * roll(x / 3)); break;
+    case 'surf':  v = P * (0.15 + 0.85 * (0.5 * roll(x / 7.3) + 0.3 * roll(x / 2.9) + 0.2 * roll(x / 1.7))); break;
+    case 'climb': {
+      const C = 11, ph = x % C, work = C * 0.86;
+      if (ph >= work) v = P * 0.06;                   // the pause
+      else {
+        const seg = work / 4, k = Math.floor(ph / seg), top = 0.55 + 0.15 * k;
+        v = P * (0.2 + (top - 0.2) * roll((ph % seg) / seg));
+      }
+      break;
+    }
+    case 'heart': {
+      const p = (x / 1.15) % 1;
+      v = P * clamp(0.12 + bump(p, 0.10, 0.07) + 0.65 * bump(p, 0.32, 0.08));
+      break;
+    }
+    case 'throb': {
+      const p = (x / 0.9) % 1;
+      const on = p < 0.45 ? Math.min(1, p / 0.06, (0.45 - p) / 0.06) : 0;   // soft-edged square pulse
+      v = P * (0.18 + 0.82 * on);
+      break;
+    }
+    case 'flutter': {
+      if (now >= f.fl.next) { f.fl.target = P * (0.35 + 0.65 * Math.random()); f.fl.next = now + (120 + Math.random() * 380) * speed; }
+      f.fl.cur += (f.fl.target - f.fl.cur) * 0.3;
+      v = f.fl.cur;
+      break;
+    }
+  }
   S.set = clamp(v); drawSlider();
-  if (f.shape === 'waves') {
-    $('fadeProg').style.width = (S.set / Math.max(f.peak, .01)) * 100 + '%';
+  if (f.dur === Infinity) {
+    $('fadeProg').style.width = (S.set / Math.max(P, .01)) * 100 + '%';
     $('fadeLeft').textContent = fmt(el / 1000) + ' so far';
   } else {
     $('fadeProg').style.width = t * 100 + '%';
     $('fadeLeft').textContent = Math.ceil((f.dur - el) / 1000) + ' s left';
+    if (t >= 1) cancelFade();
   }
-  if (t >= 1) cancelFade();
 }
 
 /* ---------- auto-off ---------- */
@@ -878,7 +982,7 @@ function tick() {
   let target = mus == null ? S.set : S.set * mus;
   target *= offScale(now);
   // glide (doesn't apply to music, which has its own smoothing)
-  const g = mus == null ? glideRates[S.glide] : 1;
+  const g = mus == null && !S.fade ? glideRates[S.glide] : 1;
   S.smoothOut += (target - S.smoothOut) * g;
   if (Math.abs(target - S.smoothOut) < 0.002) S.smoothOut = target;
   const out = S.smoothOut;
