@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="theme-color" content="#0b0e0c">
+<title>Jive Remote</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one phone screen. Status strip on top, tall vertical slider on the left, mode panel on the right, Stop bar pinned at the bottom. */
+:root{
+  --bg:#0b0e0c; --panel:#141916; --raise:#1c231f; --line:#2b3530;
+  --fg:#eef3ea; --dim:#97a39a;
+  --green:#78dc87; --green-dim:#2f5c37;
+  --yellow:#efcd4c; --yellow-dim:#5e5121;
+  --fuchsia:#dc5aa0; --fuchsia-dim:#4f2238;
+  --display:Futura,"Futura PT","Jost","Century Gothic",system-ui,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,Menlo,monospace;
+  --r:4px;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--display);font-weight:500;font-size:15px;
+  -webkit-tap-highlight-color:transparent;overscroll-behavior:none;user-select:none;-webkit-user-select:none}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,.vslider:focus-visible,input:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+.app{height:100%;display:flex;flex-direction:column;gap:12px;
+  padding-top:max(12px,env(safe-area-inset-top,0px));padding-bottom:max(12px,env(safe-area-inset-bottom,0px));
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  max-width:640px;margin:0 auto}
+
+/* status strip */
+.top{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.brand{font-size:18px;letter-spacing:.04em;margin-right:auto}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:6px 9px;border:1px solid var(--line);border-radius:var(--r);
+  font-family:var(--mono);font-size:12px;color:var(--dim);background:var(--panel);white-space:nowrap}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--dim)}
+.chip[data-s=ok]{color:var(--fg)} .chip[data-s=ok] .dot{background:var(--green);box-shadow:0 0 8px var(--green)}
+.chip[data-s=wait] .dot{background:var(--yellow);animation:blink 1s infinite}
+.chip[data-s=bad]{color:var(--fuchsia);border-color:var(--fuchsia-dim)} .chip[data-s=bad] .dot{background:var(--fuchsia)}
+.batt{width:18px;height:9px;border:1.5px solid currentColor;border-radius:2px;position:relative}
+.batt::after{content:"";position:absolute;right:-4px;top:2px;width:2px;height:3px;background:currentColor}
+.batt i{position:absolute;inset:1px auto 1px 1px;background:var(--green);border-radius:1px}
+.gear{padding:6px 8px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel);font-family:var(--mono);font-size:12px;color:var(--dim)}
+@keyframes blink{50%{opacity:.25}}
+
+.alert{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--fuchsia);border-radius:var(--r);
+  background:var(--fuchsia-dim);color:var(--fg);font-size:14px}
+.alert b{color:var(--fuchsia);font-weight:600}
+
+/* main */
+.main{flex:1;min-height:0;display:grid;grid-template-columns:minmax(104px,36%) 1fr;gap:14px}
+.sliderCol{display:flex;flex-direction:column;align-items:stretch;gap:8px;min-height:0}
+.readout{display:flex;align-items:baseline;justify-content:space-between;gap:4px}
+.readout .num{font-family:var(--mono);font-size:30px;font-weight:500;font-variant-numeric:tabular-nums;line-height:1}
+.readout .lbl{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.vslider{position:relative;flex:1;min-height:200px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel);
+  touch-action:none;overflow:hidden;cursor:ns-resize}
+.vslider .ticks{position:absolute;inset:0;background:repeating-linear-gradient(to top,transparent 0 calc(10% - 1px),var(--line) calc(10% - 1px) 10%)}
+.vslider .fill{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(to top,var(--green-dim),rgba(120,220,135,.55));transition:height .06s linear}
+.vslider .thumb{position:absolute;left:0;right:0;height:4px;bottom:0;background:var(--green);transform:translateY(50%);box-shadow:0 0 12px var(--green)}
+.vslider .live{position:absolute;right:6px;width:10px;bottom:6px;top:6px;border-radius:2px;background:rgba(255,255,255,.04)}
+.vslider .live i{position:absolute;left:0;right:0;bottom:0;height:0;background:var(--yellow);border-radius:2px;box-shadow:0 0 8px var(--yellow)}
+.legend{display:flex;gap:10px;font-size:11px;color:var(--dim);font-family:var(--mono)}
+.legend span::before{content:"";display:inline-block;width:8px;height:8px;margin-right:5px;vertical-align:-1px;border-radius:1px}
+.legend .g::before{background:var(--green)} .legend .y::before{background:var(--yellow)}
+
+.panelCol{display:flex;flex-direction:column;gap:12px;min-height:0;min-width:0}
+.tabs{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.tabs button{padding:10px 4px;font-size:14px;color:var(--dim);background:var(--panel);position:relative}
+.tabs button+button{border-left:1px solid var(--line)}
+.tabs button[aria-selected=true]{color:var(--bg);background:var(--green)}
+.tabs button .on{position:absolute;top:5px;right:6px;width:6px;height:6px;border-radius:50%;background:var(--yellow)}
+.panel{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column;gap:14px;padding-right:2px}
+.h{font-size:11px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
+.group{display:flex;flex-direction:column;gap:8px}
+.row{display:flex;flex-wrap:wrap;gap:6px}
+.btn{padding:10px 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--raise);font-size:14px;min-height:42px}
+.btn.wide{flex:1}
+.btn[aria-pressed=true]{border-color:var(--green);color:var(--green);background:#16261a}
+.btn.go{background:var(--green);color:var(--bg);border-color:var(--green)}
+.btn.warn{border-color:var(--fuchsia);color:var(--fuchsia)}
+.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+.note{font-size:13px;color:var(--dim);line-height:1.45;font-family:var(--display);font-weight:400}
+.note b{color:var(--fg);font-weight:500}
+.range{display:flex;flex-direction:column;gap:4px}
+.range label{display:flex;justify-content:space-between;font-size:13px}
+.range label span{font-family:var(--mono);color:var(--yellow);font-size:12px}
+input[type=range]{width:100%;accent-color:var(--yellow);height:28px}
+.song{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel);min-width:0}
+.song .t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:13px}
+.song .tm{font-family:var(--mono);font-size:12px;color:var(--dim)}
+.scope{height:44px;width:100%;display:block;border:1px solid var(--line);border-radius:var(--r);background:var(--panel)}
+.progress{height:6px;border-radius:3px;background:var(--raise);overflow:hidden}
+.progress i{display:block;height:100%;width:0;background:var(--yellow)}
+.fadeNow{display:flex;flex-direction:column;gap:8px;padding:10px;border:1px solid var(--yellow-dim);border-radius:var(--r);background:#1a1a10}
+.fadeNow .top2{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.fadeNow .tm{font-family:var(--mono);font-size:12px;color:var(--yellow)}
+
+/* bottom */
+.bottom{display:flex;gap:8px;align-items:stretch}
+.stop{flex:1;padding:16px;border-radius:var(--r);background:var(--fuchsia);color:#1a0610;font-size:18px;letter-spacing:.14em;font-weight:600}
+.timer{padding:0 12px;border:1px solid var(--line);border-radius:var(--r);background:var(--panel);font-size:13px;color:var(--dim);display:flex;flex-direction:column;justify-content:center;min-width:92px;text-align:left}
+.timer b{font-family:var(--mono);font-weight:500;color:var(--fg);font-size:14px}
+.timer[data-on=true]{border-color:var(--yellow-dim)} .timer[data-on=true] b{color:var(--yellow)}
+
+/* sheet */
+.sheet{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;z-index:5}
+.sheet .box{width:100%;max-width:640px;background:var(--panel);border-top:1px solid var(--line);border-radius:8px 8px 0 0;
+  padding:18px max(16px,env(safe-area-inset-right,0px)) max(18px,env(safe-area-inset-bottom,0px)) max(16px,env(safe-area-inset-left,0px));
+  display:flex;flex-direction:column;gap:14px;max-height:85%;overflow-y:auto}
+.sheet h2{margin:0;font-size:18px;font-weight:500}
+.field{display:flex;gap:6px}
+.field input{flex:1;min-width:0;padding:10px;border:1px solid var(--line);border-radius:var(--r);background:var(--bg);color:var(--fg);font-family:var(--mono);font-size:14px}
+.log{font-family:var(--mono);font-size:11px;color:var(--dim);background:var(--bg);border:1px solid var(--line);border-radius:var(--r);padding:8px;max-height:140px;overflow:auto;white-space:pre-wrap;user-select:text;-webkit-user-select:text}
+ol.note{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
+
+@media (max-width:360px){.readout .num{font-size:24px}.grid4{grid-template-columns:repeat(2,1fr)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div class="brand">Jive Remote</div>
+    <span class="chip" id="chipEngine" data-s="bad"><span class="dot"></span><span id="engineTxt">Intiface</span></span>
+    <span class="chip" id="chipToy" data-s="bad"><span class="dot"></span><span id="toyTxt">Jive</span></span>
+    <span class="chip" id="chipBatt" title="Battery"><span class="batt"><i id="battFill" style="width:0"></i></span><span id="battTxt">--</span></span>
+    <button class="gear" id="gear" aria-label="Connection settings">Setup</button>
+  </header>
+
+  <div class="alert" id="alert" hidden><b>!</b><span id="alertTxt"></span></div>
+
+  <main class="main">
+    <section class="sliderCol">
+      <div class="readout"><span class="num" id="pct">0</span><span class="lbl" id="sliderLbl">Level</span></div>
+      <div class="vslider" id="vs" role="slider" tabindex="0" aria-label="Intensity" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+        <div class="ticks"></div>
+        <div class="fill" id="fill"></div>
+        <div class="thumb" id="thumb"></div>
+        <div class="live"><i id="liveBar"></i></div>
+      </div>
+      <div class="legend"><span class="g">set</span><span class="y">live</span></div>
+    </section>
+
+    <section class="panelCol">
+      <div class="tabs" role="tablist">
+        <button role="tab" aria-selected="true" data-tab="manual">Manual</button>
+        <button role="tab" aria-selected="false" data-tab="music">Music<i class="on" id="musicOn" hidden></i></button>
+        <button role="tab" aria-selected="false" data-tab="fades">Fades<i class="on" id="fadeOn" hidden></i></button>
+      </div>
+
+      <!-- MANUAL -->
+      <div class="panel" id="p-manual">
+        <div class="group">
+          <div class="h">Jump to</div>
+          <div class="grid4">
+            <button class="btn" data-set="0.15">15</button><button class="btn" data-set="0.35">35</button>
+            <button class="btn" data-set="0.6">60</button><button class="btn" data-set="1">100</button>
+          </div>
+        </div>
+        <div class="group">
+          <div class="h">Nudge</div>
+          <div class="grid2">
+            <button class="btn" data-nudge="-0.05">− 5</button><button class="btn" data-nudge="0.05">+ 5</button>
+          </div>
+        </div>
+        <div class="group">
+          <div class="h">Glide</div>
+          <div class="note">How smoothly the toy follows your finger. Higher feels softer when you jump between levels.</div>
+          <div class="range"><label for="glide">Glide <span id="glideV">Medium</span></label>
+            <input type="range" id="glide" min="0" max="3" step="1" value="1"></div>
+        </div>
+        <p class="note">Drag the tall bar on the left. The <b>yellow</b> stripe is what the Jive is actually getting right now.</p>
+      </div>
+
+      <!-- MUSIC -->
+      <div class="panel" id="p-music" hidden>
+        <div class="group">
+          <div class="h">Source</div>
+          <div class="grid2">
+            <button class="btn" id="pickSong">Play a song</button>
+            <button class="btn" id="useMic">Microphone</button>
+          </div>
+          <input type="file" id="songFile" accept="audio/*" hidden>
+          <audio id="audio" preload="auto"></audio>
+          <div class="song" id="songRow" hidden>
+            <button class="btn" id="playPause" style="min-height:34px;padding:6px 10px">Pause</button>
+            <span class="t" id="songName"></span><span class="tm" id="songTime">0:00</span>
+          </div>
+          <canvas class="scope" id="scope" width="600" height="88"></canvas>
+          <button class="btn warn" id="musicStop" hidden>Stop music sync</button>
+        </div>
+        <div class="group">
+          <div class="h">Follow</div>
+          <div class="grid3">
+            <button class="btn" data-band="beat" aria-pressed="true">Beat</button>
+            <button class="btn" data-band="voice" aria-pressed="false">Melody</button>
+            <button class="btn" data-band="all" aria-pressed="false">Everything</button>
+          </div>
+        </div>
+        <div class="range"><label for="sens">Sensitivity <span id="sensV">100%</span></label>
+          <input type="range" id="sens" min="50" max="200" step="5" value="100"></div>
+        <div class="range"><label for="smooth">Smoothness <span id="smoothV">50%</span></label>
+          <input type="range" id="smooth" min="0" max="100" step="5" value="50"></div>
+        <div class="range"><label for="floor">Never below <span id="floorV">0%</span></label>
+          <input type="range" id="floor" min="0" max="60" step="5" value="0"></div>
+        <p class="note">While music sync is on, the tall bar sets the <b>maximum</b>. The music moves the level between your floor and that maximum.</p>
+      </div>
+
+      <!-- FADES -->
+      <div class="panel" id="p-fades" hidden>
+        <div class="fadeNow" id="fadeNow" hidden>
+          <div class="top2"><span id="fadeName">Build</span><span class="tm" id="fadeLeft">0:00</span></div>
+          <div class="progress"><i id="fadeProg"></i></div>
+          <button class="btn warn" id="fadeCancel">Cancel fade (hold level)</button>
+        </div>
+        <div class="group">
+          <div class="h">Shape</div>
+          <div class="grid2">
+            <button class="btn" data-shape="build" aria-pressed="true">Build up</button>
+            <button class="btn" data-shape="down" aria-pressed="false">Wind down</button>
+            <button class="btn" data-shape="swell" aria-pressed="false">Swell</button>
+            <button class="btn" data-shape="waves" aria-pressed="false">Waves</button>
+          </div>
+          <div class="note" id="shapeNote"></div>
+        </div>
+        <div class="group">
+          <div class="h">Length</div>
+          <div class="grid3">
+            <button class="btn" data-dur="1">1 min</button><button class="btn" data-dur="3">3 min</button>
+            <button class="btn" data-dur="5" aria-pressed="true">5 min</button><button class="btn" data-dur="10">10 min</button>
+            <button class="btn" data-dur="20">20 min</button><button class="btn" data-dur="30">30 min</button>
+          </div>
+        </div>
+        <div class="range" id="peakWrap"><label for="peak">Peak <span id="peakV">70%</span></label>
+          <input type="range" id="peak" min="10" max="100" step="5" value="70"></div>
+        <div class="group" id="speedWrap" hidden>
+          <div class="h">Wave speed</div>
+          <div class="grid3">
+            <button class="btn" data-speed="20">Slow</button><button class="btn" data-speed="9" aria-pressed="true">Medium</button><button class="btn" data-speed="4">Fast</button>
+          </div>
+        </div>
+        <button class="btn go" id="fadeStart">Start fade</button>
+        <p class="note">Touching the tall bar stops a fade and keeps the level where you put it.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="bottom">
+    <button class="stop" id="stop">STOP</button>
+    <button class="timer" id="timer" data-on="false"><span>Auto-off</span><b id="timerTxt">Off</b></button>
+  </footer>
+</div>
+
+<div class="sheet" id="sheet" hidden>
+  <div class="box">
+    <h2>Connect to Intiface</h2>
+    <ol class="note">
+      <li>Open <b>Intiface Central</b> and press the big start button.</li>
+      <li>Turn on the Jive. This page finds it on its own.</li>
+      <li>Come back here. Leave Intiface running in the background.</li>
+    </ol>
+    <div class="group">
+      <div class="h">Intiface address</div>
+      <div class="field"><input id="addr" value="ws://127.0.0.1:12345" spellcheck="false" autocapitalize="off">
+        <button class="btn go" id="addrSave">Connect</button></div>
+      <div class="note">Only change this if you changed the port in Intiface's settings.</div>
+    </div>
+    <div class="group">
+      <div class="h">Activity</div>
+      <div class="log" id="log"></div>
+    </div>
+    <button class="btn" id="sheetClose">Done</button>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+const $ = id => document.getElementById(id);
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const fmt = s => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+const store = {
+  get(k, d) { try { const v = localStorage.getItem('jr.' + k); return v == null ? d : v; } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem('jr.' + k, v); } catch (e) {} }
+};
+
+/* ---------- state ---------- */
+const S = {
+  ws: null, wsOpen: false, ready: false, wantConnect: true, retry: 0, retryTimer: null, pingTimer: null,
+  msgId: 1, waiters: new Map(),
+  dev: null,            // {index, name, vibes:[idx], steps, battIdx, battOld}
+  lostDev: false,
+  set: 0,               // what the slider says (0..1)
+  out: 0,               // what we compute this tick
+  smoothOut: 0,
+  sent: -1, sentAt: 0,
+  glide: 1,
+  fade: null,
+  offAt: 0, offMins: 0,
+  battery: null
+};
+
+/* ---------- log ---------- */
+const logLines = [];
+function log(t) {
+  const d = new Date();
+  logLines.push(d.toTimeString().slice(0, 8) + '  ' + t);
+  if (logLines.length > 60) logLines.shift();
+  $('log').textContent = logLines.join('\n');
+  $('log').scrollTop = 1e6;
+}
+
+/* ---------- Buttplug / Intiface connection ---------- */
+function connect() {
+  clearTimeout(S.retryTimer);
+  if (S.ws) { try { S.ws.onclose = null; S.ws.close(); } catch (e) {} }
+  const url = $('addr').value.trim() || 'ws://127.0.0.1:12345';
+  setEngine('wait', 'Intiface…');
+  let ws;
+  try { ws = new WebSocket(url); } catch (e) { log('Bad address: ' + url); scheduleRetry(); return; }
+  S.ws = ws;
+  ws.onopen = () => {
+    S.wsOpen = true; S.retry = 0;
+    log('Reached Intiface');
+    send('RequestServerInfo', { ClientName: 'Jive Remote', MessageVersion: 3 });
+  };
+  ws.onmessage = ev => {
+    let arr; try { arr = JSON.parse(ev.data); } catch (e) { return; }
+    for (const m of arr) for (const k in m) handle(k, m[k]);
+  };
+  ws.onerror = () => {};
+  ws.onclose = () => {
+    const was = S.ready;
+    S.wsOpen = false; S.ready = false; clearInterval(S.pingTimer);
+    if (S.dev) { S.dev = null; S.lostDev = true; }
+    S.sent = -1;
+    setToy('bad', 'Jive');
+    if (was) { log('Lost Intiface'); showAlert('Lost Intiface. Is it still running? Reconnecting…'); }
+    else if (S.retry === 0 || S.retry % 6 === 0) {
+      log('Couldn\'t reach Intiface at ' + url + '. Check that its start button is on.' +
+          (location.protocol === 'https:' ? ' If Chrome asked about local network access, tap Allow.' : ' (This page was opened as a file. Open it from its web link instead.)'));
+    }
+    setEngine('bad', 'Intiface');
+    scheduleRetry();
+  };
+}
+function scheduleRetry() {
+  if (!S.wantConnect) return;
+  const wait = Math.min(5000, 800 + S.retry * 700);
+  S.retry++;
+  clearTimeout(S.retryTimer);
+  S.retryTimer = setTimeout(connect, wait);
+}
+function send(type, body = {}) {
+  if (!S.ws || S.ws.readyState !== 1) return Promise.resolve(null);
+  const Id = S.msgId++;
+  S.ws.send(JSON.stringify([{ [type]: Object.assign({ Id }, body) }]));
+  return new Promise(res => {
+    S.waiters.set(Id, res);
+    setTimeout(() => { if (S.waiters.has(Id)) { S.waiters.delete(Id); res(null); } }, 4000);
+  });
+}
+function handle(type, m) {
+  if (m && m.Id && S.waiters.has(m.Id)) { S.waiters.get(m.Id)({ type, m }); S.waiters.delete(m.Id); }
+  switch (type) {
+    case 'ServerInfo':
+      S.ready = true;
+      setEngine('ok', 'Intiface');
+      log('Connected to ' + (m.ServerName || 'Intiface'));
+      hideAlert();
+      $('sheet').hidden = true;
+      clearInterval(S.pingTimer);
+      if (m.MaxPingTime > 0) S.pingTimer = setInterval(() => send('Ping'), Math.max(200, m.MaxPingTime / 2));
+      send('RequestDeviceList').then(r => {
+        const list = r && r.m && r.m.Devices || [];
+        list.forEach(addDevice);
+        if (!S.dev) startScan();
+      });
+      break;
+    case 'DeviceAdded': addDevice(m); break;
+    case 'DeviceRemoved':
+      if (S.dev && m.DeviceIndex === S.dev.index) {
+        log('Jive dropped');
+        S.dev = null; S.lostDev = true; S.sent = -1;
+        setToy('bad', 'Jive');
+        showAlert('The Jive dropped. Looking for it again…');
+        startScan();
+      }
+      break;
+    case 'ScanningFinished':
+      if (!S.dev && S.ready) setTimeout(() => { if (!S.dev && S.ready) startScan(); }, 1500);
+      break;
+    case 'Error':
+      if (m.ErrorMessage) log('Intiface says: ' + m.ErrorMessage);
+      break;
+  }
+}
+function startScan() {
+  setToy('wait', 'Looking…');
+  send('StartScanning');
+}
+function addDevice(d) {
+  if (S.dev) return;
+  const msgs = d.DeviceMessages || {};
+  let vibes = [], steps = 20;
+  if (Array.isArray(msgs.ScalarCmd)) {
+    msgs.ScalarCmd.forEach((a, i) => { if (a.ActuatorType === 'Vibrate') { vibes.push(i); if (a.StepCount) steps = a.StepCount; } });
+  }
+  const oldVibe = msgs.VibrateCmd;
+  if (!vibes.length && !oldVibe) return; // not a vibrator
+  let battIdx = -1;
+  if (Array.isArray(msgs.SensorReadCmd)) battIdx = msgs.SensorReadCmd.findIndex(s => s.SensorType === 'Battery');
+  S.dev = { index: d.DeviceIndex, name: d.DeviceName || 'Toy', vibes, steps, oldVibe: !vibes.length,
+            vibeCount: oldVibe ? (oldVibe.FeatureCount || 1) : 0, battIdx, battOld: !!msgs.BatteryLevelCmd };
+  log('Found ' + S.dev.name + ' (' + steps + ' steps)');
+  send('StopScanning');
+  setToy('ok', shortName(S.dev.name));
+  if (S.lostDev) { showAlert('Back! The Jive reconnected.', 2500); S.lostDev = false; } else hideAlert();
+  S.sent = -1;
+  readBattery();
+}
+function shortName(n) { n = n.replace(/^we-?vibe\s*/i, ''); return n.length > 12 ? n.slice(0, 12) + '…' : n; }
+
+function writeLevel(v) {
+  const d = S.dev; if (!d || !S.ready) return;
+  if (d.oldVibe) {
+    const Speeds = []; for (let i = 0; i < d.vibeCount; i++) Speeds.push({ Index: i, Speed: v });
+    send('VibrateCmd', { DeviceIndex: d.index, Speeds });
+  } else {
+    send('ScalarCmd', { DeviceIndex: d.index, Scalars: d.vibes.map(i => ({ Index: i, Scalar: v, ActuatorType: 'Vibrate' })) });
+  }
+}
+async function readBattery() {
+  const d = S.dev; if (!d) return;
+  let r = null, pct = null;
+  if (d.battIdx >= 0) {
+    r = await send('SensorReadCmd', { DeviceIndex: d.index, SensorIndex: d.battIdx, SensorType: 'Battery' });
+    if (r && r.type === 'SensorReading' && r.m.Data && r.m.Data.length) pct = r.m.Data[0];
+  } else if (d.battOld) {
+    r = await send('BatteryLevelCmd', { DeviceIndex: d.index });
+    if (r && r.type === 'BatteryLevelReading') pct = Math.round(r.m.BatteryLevel * 100);
+  }
+  setBattery(pct);
+}
+setInterval(readBattery, 60000);
+
+/* ---------- indicators ---------- */
+function setEngine(s, t) { $('chipEngine').dataset.s = s; $('engineTxt').textContent = t; }
+function setToy(s, t) { $('chipToy').dataset.s = s; $('toyTxt').textContent = t; }
+function setBattery(p) {
+  S.battery = p;
+  const chip = $('chipBatt');
+  if (p == null) { $('battTxt').textContent = '--'; $('battFill').style.width = '0'; chip.dataset.s = ''; return; }
+  $('battTxt').textContent = p + '%';
+  $('battFill').style.width = clamp(p / 100) * 13 + 'px';
+  $('battFill').style.background = p <= 20 ? 'var(--fuchsia)' : p <= 40 ? 'var(--yellow)' : 'var(--green)';
+  chip.dataset.s = p <= 20 ? 'bad' : 'ok';
+  if (p <= 15) showAlert('Battery is low (' + p + '%). It may start dropping out soon.', 6000);
+}
+let alertT;
+function showAlert(t, ms) { $('alertTxt').textContent = t; $('alert').hidden = false; clearTimeout(alertT); if (ms) alertT = setTimeout(hideAlert, ms); }
+function hideAlert() { $('alert').hidden = true; }
+
+/* ---------- vertical slider ---------- */
+const vs = $('vs');
+function setLevel(v, fromUser) {
+  S.set = clamp(v);
+  if (fromUser && S.fade) cancelFade();
+  drawSlider();
+}
+function drawSlider() {
+  const p = S.set * 100;
+  $('fill').style.height = p + '%';
+  $('thumb').style.bottom = p + '%';
+  $('pct').textContent = Math.round(p);
+  vs.setAttribute('aria-valuenow', Math.round(p));
+}
+function fromPointer(e) {
+  const r = vs.getBoundingClientRect();
+  setLevel(1 - (e.clientY - r.top) / r.height, true);
+}
+let dragging = false;
+vs.addEventListener('pointerdown', e => { dragging = true; vs.setPointerCapture(e.pointerId); fromPointer(e); wake(); });
+vs.addEventListener('pointermove', e => { if (dragging) fromPointer(e); });
+vs.addEventListener('pointerup', () => dragging = false);
+vs.addEventListener('pointercancel', () => dragging = false);
+vs.addEventListener('keydown', e => {
+  const k = { ArrowUp: .05, ArrowRight: .05, ArrowDown: -.05, ArrowLeft: -.05, PageUp: .2, PageDown: -.2 }[e.key];
+  if (k) { e.preventDefault(); setLevel(S.set + k, true); }
+  if (e.key === 'Home') setLevel(0, true);
+  if (e.key === 'End') setLevel(1, true);
+});
+document.querySelectorAll('[data-set]').forEach(b => b.onclick = () => setLevel(+b.dataset.set, true));
+document.querySelectorAll('[data-nudge]').forEach(b => b.onclick = () => setLevel(S.set + +b.dataset.nudge, true));
+const glideNames = ['Off', 'Medium', 'Soft', 'Very soft'], glideRates = [1, .35, .15, .07];
+$('glide').oninput = e => { S.glide = +e.target.value; $('glideV').textContent = glideNames[S.glide]; store.set('glide', S.glide); };
+$('glide').value = store.get('glide', 1); $('glide').oninput({ target: $('glide') });
+
+/* ---------- tabs ---------- */
+document.querySelectorAll('[data-tab]').forEach(t => t.onclick = () => {
+  document.querySelectorAll('[data-tab]').forEach(x => x.setAttribute('aria-selected', x === t));
+  ['manual', 'music', 'fades'].forEach(n => $('p-' + n).hidden = n !== t.dataset.tab);
+});
+
+/* ---------- music sync ---------- */
+const M = { ac: null, analyser: null, elSrc: null, micSrc: null, micStream: null, active: false, kind: null,
+  band: store.get('band', 'beat'), peak: .05, env: 0, buf: null };
+const audio = $('audio');
+function ensureAC() {
+  if (!M.ac) {
+    M.ac = new (window.AudioContext || window.webkitAudioContext)();
+    M.analyser = M.ac.createAnalyser();
+    M.analyser.fftSize = 2048;
+    M.analyser.smoothingTimeConstant = .25;
+    M.buf = new Uint8Array(M.analyser.frequencyBinCount);
+  }
+  if (M.ac.state === 'suspended') M.ac.resume();
+}
+$('pickSong').onclick = () => $('songFile').click();
+$('songFile').onchange = e => {
+  const f = e.target.files[0]; if (!f) return;
+  ensureAC(); stopMic();
+  if (!M.elSrc) { M.elSrc = M.ac.createMediaElementSource(audio); M.elSrc.connect(M.analyser); M.analyser.connect(M.ac.destination); }
+  if (audio.src) URL.revokeObjectURL(audio.src);
+  audio.src = URL.createObjectURL(f);
+  audio.play().catch(() => {});
+  $('songName').textContent = f.name.replace(/\.[^.]+$/, '');
+  $('songRow').hidden = false;
+  startMusic('song');
+  e.target.value = '';
+};
+$('playPause').onclick = () => { if (audio.paused) audio.play(); else audio.pause(); };
+audio.onplay = () => $('playPause').textContent = 'Pause';
+audio.onpause = () => $('playPause').textContent = 'Play';
+audio.onended = () => $('playPause').textContent = 'Play';
+audio.ontimeupdate = () => $('songTime').textContent = fmt(audio.currentTime);
+$('useMic').onclick = async () => {
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || !window.isSecureContext) {
+    showAlert('The microphone only works when this page is opened from a web link (https). "Play a song" works everywhere.', 7000); return;
+  }
+  try {
+    ensureAC();
+    const st = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false } });
+    stopMic(); audio.pause();
+    M.micStream = st;
+    M.micSrc = M.ac.createMediaStreamSource(st);
+    M.micSrc.connect(M.analyser);
+    if (M.elSrc) { /* keep song path wired but paused */ }
+    $('songRow').hidden = true;
+    startMusic('mic');
+  } catch (e) { showAlert('Couldn\'t open the microphone. Check that Chrome is allowed to use it.', 6000); }
+};
+function stopMic() {
+  if (M.micSrc) { try { M.micSrc.disconnect(); } catch (e) {} M.micSrc = null; }
+  if (M.micStream) { M.micStream.getTracks().forEach(t => t.stop()); M.micStream = null; }
+}
+function startMusic(kind) {
+  M.active = true; M.kind = kind; M.peak = .05; M.env = 0;
+  $('musicOn').hidden = false; $('musicStop').hidden = false;
+  $('pickSong').setAttribute('aria-pressed', kind === 'song'); $('useMic').setAttribute('aria-pressed', kind === 'mic');
+  $('sliderLbl').textContent = 'Max';
+  if (S.set < .05) setLevel(.7);
+  wake();
+}
+function stopMusic() {
+  M.active = false; stopMic(); audio.pause();
+  $('musicOn').hidden = true; $('musicStop').hidden = true;
+  $('pickSong').setAttribute('aria-pressed', false); $('useMic').setAttribute('aria-pressed', false);
+  $('sliderLbl').textContent = 'Level';
+}
+$('musicStop').onclick = stopMusic;
+document.querySelectorAll('[data-band]').forEach(b => {
+  b.setAttribute('aria-pressed', b.dataset.band === M.band);
+  b.onclick = () => { M.band = b.dataset.band; store.set('band', M.band); M.peak = .05;
+    document.querySelectorAll('[data-band]').forEach(x => x.setAttribute('aria-pressed', x === b)); };
+});
+function bindRange(id, outId, f) {
+  const el = $(id); el.value = store.get(id, el.value);
+  const upd = () => { $(outId).textContent = f ? f(+el.value) : el.value + '%'; store.set(id, el.value); };
+  el.oninput = upd; upd();
+}
+bindRange('sens', 'sensV'); bindRange('smooth', 'smoothV'); bindRange('floor', 'floorV'); bindRange('peak', 'peakV');
+
+const bands = { beat: [30, 160], voice: [250, 2500], all: [30, 8000] };
+const scope = $('scope'), sctx = scope.getContext('2d');
+const hist = new Array(120).fill(0);
+function musicLevel() {
+  if (!M.active || !M.analyser) return null;
+  const playing = M.kind === 'mic' || !audio.paused;
+  let e = 0;
+  if (playing) {
+    M.analyser.getByteFrequencyData(M.buf);
+    const hz = M.ac.sampleRate / M.analyser.fftSize;
+    const [lo, hi] = bands[M.band];
+    const a = Math.max(1, Math.floor(lo / hz)), b = Math.min(M.buf.length - 1, Math.ceil(hi / hz));
+    let sum = 0; for (let i = a; i <= b; i++) sum += M.buf[i];
+    e = sum / ((b - a + 1) * 255);
+  }
+  // auto-level: track a slowly falling peak so quiet and loud songs both work
+  M.peak = Math.max(e, M.peak * 0.996, 0.04);
+  let v = clamp((e / M.peak) * (+$('sens').value / 100));
+  v = Math.pow(v, 1.6);                       // make the beats stand out from the background
+  const sm = +$('smooth').value / 100;
+  const attack = 0.85 - sm * 0.55, release = 0.35 - sm * 0.32;
+  M.env += (v - M.env) * (v > M.env ? attack : release);
+  const floor = +$('floor').value / 100;
+  return playing ? floor + (1 - floor) * M.env : 0;
+}
+function drawScope(v) {
+  hist.push(v); hist.shift();
+  const w = scope.width, h = scope.height;
+  sctx.clearRect(0, 0, w, h);
+  const bw = w / hist.length;
+  for (let i = 0; i < hist.length; i++) {
+    const bh = Math.max(2, hist[i] * (h - 8));
+    sctx.fillStyle = i === hist.length - 1 ? '#efcd4c' : 'rgba(239,205,76,' + (0.15 + 0.6 * i / hist.length) + ')';
+    sctx.fillRect(i * bw, h - 4 - bh, Math.max(1, bw - 1), bh);
+  }
+}
+
+/* ---------- fades ---------- */
+const shapeNotes = {
+  build: 'Rises smoothly from where you are now up to the peak, then holds there.',
+  down: 'Eases from where you are now all the way to off.',
+  swell: 'Rises to the peak in the middle, then settles back to where you started.',
+  waves: 'Rolls up and down between a gentle low and the peak for the whole length.'
+};
+let shape = store.get('shape', 'build'), durMin = +store.get('dur', 5), waveSec = +store.get('speed', 9);
+function pressGroup(attr, val) { document.querySelectorAll('[' + attr + ']').forEach(b => b.setAttribute('aria-pressed', b.getAttribute(attr) == val)); }
+function updShape() {
+  pressGroup('data-shape', shape); $('shapeNote').textContent = shapeNotes[shape];
+  $('peakWrap').hidden = shape === 'down'; $('speedWrap').hidden = shape !== 'waves';
+}
+document.querySelectorAll('[data-shape]').forEach(b => b.onclick = () => { shape = b.dataset.shape; store.set('shape', shape); updShape(); });
+document.querySelectorAll('[data-dur]').forEach(b => b.onclick = () => { durMin = +b.dataset.dur; store.set('dur', durMin); pressGroup('data-dur', durMin); });
+document.querySelectorAll('[data-speed]').forEach(b => b.onclick = () => { waveSec = +b.dataset.speed; store.set('speed', waveSec); pressGroup('data-speed', waveSec); });
+updShape(); pressGroup('data-dur', durMin); pressGroup('data-speed', waveSec);
+const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+$('fadeStart').onclick = () => {
+  S.fade = { shape, start: performance.now(), dur: durMin * 60000, from: S.set, peak: +$('peak').value / 100, wave: waveSec * 1000 };
+  $('fadeName').textContent = { build: 'Build up', down: 'Wind down', swell: 'Swell', waves: 'Waves' }[shape];
+  $('fadeNow').hidden = false; $('fadeOn').hidden = false;
+  wake();
+};
+function cancelFade() { S.fade = null; $('fadeNow').hidden = true; $('fadeOn').hidden = true; }
+$('fadeCancel').onclick = cancelFade;
+function stepFade(now) {
+  const f = S.fade; if (!f) return;
+  const el = now - f.start, t = clamp(el / f.dur);
+  let v;
+  if (f.shape === 'build') v = f.from + (f.peak - f.from) * ease(t);
+  else if (f.shape === 'down') v = f.from * (1 - ease(t));
+  else if (f.shape === 'swell') v = f.from + (f.peak - f.from) * Math.sin(Math.PI * t);
+  else { const low = f.peak * .25; v = low + (f.peak - low) * (0.5 - 0.5 * Math.cos(2 * Math.PI * el / f.wave)); }
+  S.set = clamp(v); drawSlider();
+  $('fadeProg').style.width = t * 100 + '%';
+  $('fadeLeft').textContent = fmt((f.dur - el) / 1000) + ' left';
+  if (t >= 1) cancelFade();
+}
+
+/* ---------- auto-off ---------- */
+const offChoices = [0, 10, 20, 30, 45, 60, 90];
+$('timer').onclick = () => {
+  const i = (offChoices.indexOf(S.offMins) + 1) % offChoices.length;
+  S.offMins = offChoices[i];
+  S.offAt = S.offMins ? performance.now() + S.offMins * 60000 : 0;
+  $('timer').dataset.on = !!S.offMins;
+  if (!S.offMins) $('timerTxt').textContent = 'Off';
+};
+function offScale(now) {
+  if (!S.offAt) return 1;
+  const left = (S.offAt - now) / 1000;
+  $('timerTxt').textContent = fmt(left);
+  if (left <= 0) { allStop(); S.offAt = 0; S.offMins = 0; $('timer').dataset.on = false; $('timerTxt').textContent = 'Off'; return 0; }
+  return left < 30 ? left / 30 : 1;           // gentle 30-second fade before switching off
+}
+
+/* ---------- stop ---------- */
+function allStop() {
+  cancelFade(); stopMusic(); setLevel(0); S.smoothOut = 0;
+  if (S.dev) send('StopDeviceCmd', { DeviceIndex: S.dev.index });
+  send('StopAllDevices');
+  S.sent = 0; S.sentAt = performance.now();
+}
+$('stop').onclick = allStop;
+
+/* ---------- main loop: compute, then send only real changes ---------- */
+function tick() {
+  const now = performance.now();
+  stepFade(now);
+  const mus = musicLevel();
+  let target = mus == null ? S.set : S.set * mus;
+  target *= offScale(now);
+  // glide (doesn't apply to music, which has its own smoothing)
+  const g = mus == null ? glideRates[S.glide] : 1;
+  S.smoothOut += (target - S.smoothOut) * g;
+  if (Math.abs(target - S.smoothOut) < 0.002) S.smoothOut = target;
+  const out = S.smoothOut;
+  $('liveBar').style.height = out * 100 + '%';
+  if (M.active) drawScope(mus || 0);
+
+  if (S.dev && S.ready) {
+    const steps = S.dev.steps || 20;
+    const q = Math.round(out * steps) / steps;          // match the toy's real steps: fewer, cleaner Bluetooth writes
+    const gap = now - S.sentAt;
+    if ((q !== S.sent && gap > 70) || (gap > 3000 && q > 0)) {   // occasional refresh keeps it alive
+      writeLevel(q); S.sent = q; S.sentAt = now;
+    }
+  }
+}
+setInterval(tick, 40);
+
+/* ---------- keep screen awake ---------- */
+let lock = null;
+async function wake() {
+  try { if ('wakeLock' in navigator && !lock) { lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release', () => lock = null); } } catch (e) {}
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { wake(); if (!S.wsOpen) connect(); } });
+document.addEventListener('pointerdown', wake, { once: true });
+
+/* ---------- setup sheet ---------- */
+$('addr').value = store.get('addr', 'ws://127.0.0.1:12345');
+$('gear').onclick = () => $('sheet').hidden = false;
+$('sheetClose').onclick = () => $('sheet').hidden = true;
+$('sheet').onclick = e => { if (e.target === $('sheet')) $('sheet').hidden = true; };
+$('addrSave').onclick = () => { store.set('addr', $('addr').value.trim()); S.retry = 0; connect(); };
+$('chipEngine').onclick = $('chipToy').onclick = () => $('sheet').hidden = false;
+
+drawSlider();
+log('Starting');
+connect();
+setTimeout(() => { if (!S.ready) $('sheet').hidden = false; }, 2500);
+})();
+</script>
+</body>
+</html>
