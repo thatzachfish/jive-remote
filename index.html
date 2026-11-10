@@ -210,6 +210,10 @@ ol.note{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
           <input type="range" id="smooth" min="0" max="100" step="5" value="50"></div>
         <div class="range"><label for="floor">Never below <span id="floorV">0%</span></label>
           <input type="range" id="floor" min="0" max="60" step="5" value="0"></div>
+        <div class="range"><label for="delay">Speaker delay <span id="delayV">0 ms</span></label>
+          <input type="range" id="delay" min="0" max="500" step="10" value="0"></div>
+        <p class="note">Playing a song through a <b>Bluetooth speaker</b>? Its sound arrives a little late. Raise Speaker delay until the buzz lands with the beat (usually 150–250 ms).</p>
+        <p class="note">Music from <b>another app</b> (Spotify and so on): use <b>Microphone</b> and keep the phone near the speaker.</p>
         <p class="note">While music sync is on, the tall bar sets the <b>maximum</b>. The music moves the level between your floor and that maximum.</p>
       </div>
 
@@ -230,12 +234,11 @@ ol.note{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
           </div>
           <div class="note" id="shapeNote"></div>
         </div>
-        <div class="group">
+        <div class="group" id="lenWrap">
           <div class="h">Length</div>
           <div class="grid3">
-            <button class="btn" data-dur="1">1 min</button><button class="btn" data-dur="3">3 min</button>
-            <button class="btn" data-dur="5" aria-pressed="true">5 min</button><button class="btn" data-dur="10">10 min</button>
-            <button class="btn" data-dur="20">20 min</button><button class="btn" data-dur="30">30 min</button>
+            <button class="btn" data-dur="5">5 sec</button><button class="btn" data-dur="10" aria-pressed="true">10 sec</button>
+            <button class="btn" data-dur="30">30 sec</button>
           </div>
         </div>
         <div class="range" id="peakWrap"><label for="peak">Peak <span id="peakV">70%</span></label>
@@ -243,7 +246,7 @@ ol.note{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
         <div class="group" id="speedWrap" hidden>
           <div class="h">Wave speed</div>
           <div class="grid3">
-            <button class="btn" data-speed="20">Slow</button><button class="btn" data-speed="9" aria-pressed="true">Medium</button><button class="btn" data-speed="4">Fast</button>
+            <button class="btn" data-speed="6">Slow</button><button class="btn" data-speed="3" aria-pressed="true">Medium</button><button class="btn" data-speed="1.2">Fast</button>
           </div>
         </div>
         <button class="btn go" id="fadeStart">Start fade</button>
@@ -260,13 +263,27 @@ ol.note{margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px}
 
 <div class="sheet" id="sheet" hidden>
   <div class="box">
-    <h2>Connect to Intiface</h2>
-    <ol class="note">
-      <li>Open <b>Intiface Central</b> and press the big start button.</li>
-      <li>Turn on the Jive. This page finds it on its own.</li>
-      <li>Come back here. Leave Intiface running in the background.</li>
-    </ol>
-    <div class="group">
+    <h2>Connect the Jive</h2>
+    <div class="grid2">
+      <button class="btn" data-mode="direct">Direct</button>
+      <button class="btn" data-mode="intiface">Through Intiface</button>
+    </div>
+    <div class="group" id="m-direct">
+      <ol class="note">
+        <li>If Intiface is open, <b>close it</b> so it lets go of the toy.</li>
+        <li>Turn on the Jive.</li>
+        <li>Tap <b>Find my Jive</b> and pick it from the list.</li>
+      </ol>
+      <button class="btn go" id="findJive">Find my Jive</button>
+      <button class="btn" id="findAll">Not in the list? Show every device</button>
+      <div class="note">It gives a short buzz when it connects. If it drops, this page reconnects on its own.</div>
+    </div>
+    <div class="group" id="m-intiface">
+      <ol class="note">
+        <li>Open <b>Intiface Central</b> and press the big start button.</li>
+        <li>Turn on the Jive. This page finds it on its own.</li>
+        <li>Come back here. Leave Intiface running in the background.</li>
+      </ol>
       <div class="h">Intiface address</div>
       <div class="field"><input id="addr" value="ws://127.0.0.1:12345" spellcheck="false" autocapitalize="off">
         <button class="btn go" id="addrSave">Connect</button></div>
@@ -304,7 +321,7 @@ const S = {
   glide: 1,
   fade: null,
   offAt: 0, offMins: 0,
-  battery: null
+  battery: null, mode: 'direct'
 };
 
 /* ---------- log ---------- */
@@ -320,6 +337,7 @@ function log(t) {
 /* ---------- Buttplug / Intiface connection ---------- */
 function connect() {
   clearTimeout(S.retryTimer);
+  if (S.mode !== 'intiface') return;
   if (S.ws) { try { S.ws.onclose = null; S.ws.close(); } catch (e) {} }
   const url = $('addr').value.trim() || 'ws://127.0.0.1:12345';
   setEngine('wait', 'Intiface…');
@@ -437,7 +455,143 @@ function writeLevel(v) {
     send('ScalarCmd', { DeviceIndex: d.index, Scalars: d.vibes.map(i => ({ Index: i, Scalar: v, ActuatorType: 'Vibrate' })) });
   }
 }
-async function readBattery() {
+/* ---------- Direct Bluetooth (no Intiface) ----------
+   We-Vibe protocol, as documented by the Buttplug project:
+   service f000bb03…, control f000c000… (8-byte packets), info f000b000… (battery in bytes 2–3). */
+const WV = {
+  svc: 'f000bb03-0451-4000-b000-000000000000',
+  tx: 'f000c000-0451-4000-b000-000000000000',
+  info: 'f000b000-0451-4000-b000-000000000000'
+};
+const OFF = [0x0f, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00];
+const D = { device: null, tx: null, info: null, ready: false, busy: false, want: false, connecting: false,
+            retry: 0, timer: null, withResp: false, loggedInfo: false };
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function packet(v) {
+  const n = Math.round(clamp(v) * 15);
+  return n === 0 ? OFF : [0x0f, 0x03, 0x00, (n << 4) | n, 0x00, 0x03, 0x00, 0x00];
+}
+async function findJive(all) {
+  if (!navigator.bluetooth) {
+    log('This browser can\'t use Bluetooth directly. Use Chrome on Android, or switch to Through Intiface.');
+    showAlert('Direct mode needs Chrome on Android. You can switch to "Through Intiface" in Setup.', 7000);
+    return;
+  }
+  try {
+    const opts = all
+      ? { acceptAllDevices: true, optionalServices: [WV.svc] }
+      : { filters: [{ namePrefix: 'Jive' }, { namePrefix: 'jive' }, { namePrefix: 'JIVE' }, { services: [WV.svc] }], optionalServices: [WV.svc] };
+    const dev = await navigator.bluetooth.requestDevice(opts);
+    attachDevice(dev);
+  } catch (e) {
+    log(e.name === 'NotFoundError' ? 'No device picked.' : 'Bluetooth: ' + e.message);
+  }
+}
+function attachDevice(dev) {
+  if (D.device && D.device !== dev) {
+    D.device.removeEventListener('gattserverdisconnected', onDirectDrop);
+    try { D.device.gatt.disconnect(); } catch (e) {}
+  }
+  D.device = dev; D.want = true; D.retry = 0;
+  dev.removeEventListener('gattserverdisconnected', onDirectDrop);
+  dev.addEventListener('gattserverdisconnected', onDirectDrop);
+  directConnect();
+}
+async function directConnect() {
+  const dev = D.device;
+  if (!dev || D.connecting || S.mode !== 'direct') return;
+  D.connecting = true;
+  clearTimeout(D.timer);
+  setToy('wait', 'Connecting…');
+  try {
+    const server = await dev.gatt.connect();
+    const svc = await server.getPrimaryService(WV.svc);
+    D.tx = await svc.getCharacteristic(WV.tx);
+    try { D.info = await svc.getCharacteristic(WV.info); } catch (e) { D.info = null; }
+    D.ready = true; D.retry = 0;
+    await bleWrite([0x0f, 0x03, 0x00, 0x99, 0x00, 0x03, 0x00, 0x00]);   // hello buzz (same start-up Intiface sends)
+    await sleep(120);
+    await bleWrite(OFF);
+    S.sent = -1;
+    setToy('ok', shortName(dev.name || 'Jive'));
+    log('Connected directly to ' + (dev.name || 'the toy'));
+    $('sheet').hidden = true;
+    if (S.lostDev) { showAlert('Back! The Jive reconnected.', 2500); S.lostDev = false; } else hideAlert();
+    readBattery();
+  } catch (e) {
+    D.ready = false; D.tx = null;
+    log('Couldn\'t connect: ' + e.message);
+    setToy('bad', 'Jive');
+    scheduleDirectRetry();
+  } finally { D.connecting = false; }
+}
+function onDirectDrop() {
+  const was = D.ready;
+  D.ready = false; D.tx = null; D.info = null; D.busy = false; S.sent = -1;
+  if (!D.want || S.mode !== 'direct') return;
+  if (was) { S.lostDev = true; log('Jive dropped'); showAlert('The Jive dropped. Reconnecting…'); }
+  setToy('bad', 'Jive');
+  scheduleDirectRetry();
+}
+function scheduleDirectRetry() {
+  if (!D.want || S.mode !== 'direct') return;
+  clearTimeout(D.timer);
+  D.timer = setTimeout(directConnect, Math.min(5000, 600 + D.retry++ * 800));
+}
+async function bleWrite(arr) {
+  const c = D.tx; if (!c) return;
+  const data = new Uint8Array(arr);
+  D.busy = true;
+  try {
+    if (!D.withResp && c.writeValueWithoutResponse) {
+      try { await c.writeValueWithoutResponse(data); }
+      catch (e) { D.withResp = true; await c.writeValue(data); }
+    } else await c.writeValue(data);
+  } catch (e) { log('Send failed: ' + e.message); }
+  finally { D.busy = false; }
+}
+async function readBatteryDirect() {
+  if (!D.info || !D.ready) return;
+  while (D.busy) await sleep(30);
+  D.busy = true;
+  try {
+    const dv = await D.info.readValue();
+    const b = []; for (let i = 0; i < dv.byteLength; i++) b.push(dv.getUint8(i));
+    if (!D.loggedInfo) { log('Toy info: ' + b.map(x => x.toString(16).padStart(2, '0')).join(' ')); D.loggedInfo = true; }
+    if (b.length >= 4 && b[0] === 0x01) setBattery(Math.round(((b[2] << 8) | b[3]) / 65535 * 100));
+  } catch (e) { log('Battery read failed: ' + e.message); }
+  finally { D.busy = false; }
+}
+function directDisconnect() {
+  D.want = false; clearTimeout(D.timer);
+  if (D.device) { try { D.device.gatt.disconnect(); } catch (e) {} }
+  D.ready = false; D.tx = null; D.info = null;
+}
+$('findJive').onclick = () => findJive(false);
+$('findAll').onclick = () => findJive(true);
+
+/* ---------- connection mode ---------- */
+function setMode(m) {
+  S.mode = m; store.set('mode', m);
+  document.querySelectorAll('[data-mode]').forEach(b => b.setAttribute('aria-pressed', b.dataset.mode === m));
+  $('m-direct').hidden = m !== 'direct';
+  $('m-intiface').hidden = m !== 'intiface';
+  $('chipEngine').hidden = m !== 'intiface';
+  S.dev = null; S.sent = -1; setBattery(null); setToy('bad', 'Jive');
+  if (m === 'direct') {
+    S.wantConnect = false; clearTimeout(S.retryTimer); clearInterval(S.pingTimer);
+    if (S.ws) { S.ws.onclose = null; try { S.ws.close(); } catch (e) {} S.ws = null; }
+    S.ready = false; S.wsOpen = false;
+    if (D.device) { D.want = true; directConnect(); }
+  } else {
+    directDisconnect();
+    S.wantConnect = true; S.retry = 0; connect();
+  }
+}
+document.querySelectorAll('[data-mode]').forEach(b => b.onclick = () => { if (S.mode !== b.dataset.mode) setMode(b.dataset.mode); });
+
+function readBattery() { if (S.mode === 'direct') readBatteryDirect(); else readBatteryIntiface(); }
+async function readBatteryIntiface() {
   const d = S.dev; if (!d) return;
   let r = null, pct = null;
   if (d.battIdx >= 0) {
@@ -587,11 +741,23 @@ function bindRange(id, outId, f) {
   el.oninput = upd; upd();
 }
 bindRange('sens', 'sensV'); bindRange('smooth', 'smoothV'); bindRange('floor', 'floorV'); bindRange('peak', 'peakV');
+bindRange('delay', 'delayV', v => v + ' ms');
+const delayQ = [];
 
 const bands = { beat: [30, 160], voice: [250, 2500], all: [30, 8000] };
 const scope = $('scope'), sctx = scope.getContext('2d');
 const hist = new Array(120).fill(0);
-function musicLevel() {
+function musicLevel(now) {
+  const v = rawMusicLevel();
+  if (v == null) { delayQ.length = 0; return null; }
+  const d = M.kind === 'song' ? +$('delay').value : 0;
+  if (!d) return v;
+  // hold each reading back by the speaker delay so the buzz lines up with what you hear
+  delayQ.push({ t: now, v });
+  while (delayQ.length > 1 && delayQ[1].t <= now - d) delayQ.shift();
+  return delayQ[0].t <= now - d ? delayQ[0].v : 0;
+}
+function rawMusicLevel() {
   if (!M.active || !M.analyser) return null;
   const playing = M.kind === 'mic' || !audio.paused;
   let e = 0;
@@ -630,21 +796,24 @@ const shapeNotes = {
   build: 'Rises smoothly from where you are now up to the peak, then holds there.',
   down: 'Eases from where you are now all the way to off.',
   swell: 'Rises to the peak in the middle, then settles back to where you started.',
-  waves: 'Rolls up and down between a gentle low and the peak for the whole length.'
+  waves: 'Rolls up and down between a gentle low and the peak until you stop it.'
 };
-let shape = store.get('shape', 'build'), durMin = +store.get('dur', 5), waveSec = +store.get('speed', 9);
+let shape = store.get('shape', 'build'), durSec = +store.get('durS', 10), waveSec = +store.get('speedS', 3);
+if (![5, 10, 30].includes(durSec)) durSec = 10;
+if (![6, 3, 1.2].includes(waveSec)) waveSec = 3;
 function pressGroup(attr, val) { document.querySelectorAll('[' + attr + ']').forEach(b => b.setAttribute('aria-pressed', b.getAttribute(attr) == val)); }
 function updShape() {
   pressGroup('data-shape', shape); $('shapeNote').textContent = shapeNotes[shape];
   $('peakWrap').hidden = shape === 'down'; $('speedWrap').hidden = shape !== 'waves';
+  $('lenWrap').hidden = shape === 'waves';
 }
 document.querySelectorAll('[data-shape]').forEach(b => b.onclick = () => { shape = b.dataset.shape; store.set('shape', shape); updShape(); });
-document.querySelectorAll('[data-dur]').forEach(b => b.onclick = () => { durMin = +b.dataset.dur; store.set('dur', durMin); pressGroup('data-dur', durMin); });
-document.querySelectorAll('[data-speed]').forEach(b => b.onclick = () => { waveSec = +b.dataset.speed; store.set('speed', waveSec); pressGroup('data-speed', waveSec); });
-updShape(); pressGroup('data-dur', durMin); pressGroup('data-speed', waveSec);
+document.querySelectorAll('[data-dur]').forEach(b => b.onclick = () => { durSec = +b.dataset.dur; store.set('durS', durSec); pressGroup('data-dur', durSec); });
+document.querySelectorAll('[data-speed]').forEach(b => b.onclick = () => { waveSec = +b.dataset.speed; store.set('speedS', waveSec); pressGroup('data-speed', waveSec); if (S.fade && S.fade.shape === 'waves') S.fade.wave = waveSec * 1000; });
+updShape(); pressGroup('data-dur', durSec); pressGroup('data-speed', waveSec);
 const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 $('fadeStart').onclick = () => {
-  S.fade = { shape, start: performance.now(), dur: durMin * 60000, from: S.set, peak: +$('peak').value / 100, wave: waveSec * 1000 };
+  S.fade = { shape, start: performance.now(), dur: shape === 'waves' ? Infinity : durSec * 1000, from: S.set, peak: +$('peak').value / 100, wave: waveSec * 1000 };
   $('fadeName').textContent = { build: 'Build up', down: 'Wind down', swell: 'Swell', waves: 'Waves' }[shape];
   $('fadeNow').hidden = false; $('fadeOn').hidden = false;
   wake();
@@ -660,8 +829,13 @@ function stepFade(now) {
   else if (f.shape === 'swell') v = f.from + (f.peak - f.from) * Math.sin(Math.PI * t);
   else { const low = f.peak * .25; v = low + (f.peak - low) * (0.5 - 0.5 * Math.cos(2 * Math.PI * el / f.wave)); }
   S.set = clamp(v); drawSlider();
-  $('fadeProg').style.width = t * 100 + '%';
-  $('fadeLeft').textContent = fmt((f.dur - el) / 1000) + ' left';
+  if (f.shape === 'waves') {
+    $('fadeProg').style.width = (S.set / Math.max(f.peak, .01)) * 100 + '%';
+    $('fadeLeft').textContent = fmt(el / 1000) + ' so far';
+  } else {
+    $('fadeProg').style.width = t * 100 + '%';
+    $('fadeLeft').textContent = Math.ceil((f.dur - el) / 1000) + ' s left';
+  }
   if (t >= 1) cancelFade();
 }
 
@@ -685,6 +859,11 @@ function offScale(now) {
 /* ---------- stop ---------- */
 function allStop() {
   cancelFade(); stopMusic(); setLevel(0); S.smoothOut = 0;
+  if (S.mode === 'direct') {
+    S.sent = -1;                                       // next tick sends "off"
+    if (D.tx && !D.busy) { bleWrite(OFF); S.sent = 0; S.sentAt = performance.now(); }
+    return;
+  }
   if (S.dev) send('StopDeviceCmd', { DeviceIndex: S.dev.index });
   send('StopAllDevices');
   S.sent = 0; S.sentAt = performance.now();
@@ -695,7 +874,7 @@ $('stop').onclick = allStop;
 function tick() {
   const now = performance.now();
   stepFade(now);
-  const mus = musicLevel();
+  const mus = musicLevel(now);
   let target = mus == null ? S.set : S.set * mus;
   target *= offScale(now);
   // glide (doesn't apply to music, which has its own smoothing)
@@ -706,12 +885,15 @@ function tick() {
   $('liveBar').style.height = out * 100 + '%';
   if (M.active) drawScope(mus || 0);
 
-  if (S.dev && S.ready) {
-    const steps = S.dev.steps || 20;
+  const direct = S.mode === 'direct';
+  const ok = direct ? (D.ready && !D.busy) : (S.dev && S.ready);
+  if (ok) {
+    const steps = direct ? 15 : (S.dev.steps || 20);
     const q = Math.round(out * steps) / steps;          // match the toy's real steps: fewer, cleaner Bluetooth writes
     const gap = now - S.sentAt;
     if ((q !== S.sent && gap > 70) || (gap > 3000 && q > 0)) {   // occasional refresh keeps it alive
-      writeLevel(q); S.sent = q; S.sentAt = now;
+      if (direct) bleWrite(packet(q)); else writeLevel(q);
+      S.sent = q; S.sentAt = now;
     }
   }
 }
@@ -722,7 +904,9 @@ let lock = null;
 async function wake() {
   try { if ('wakeLock' in navigator && !lock) { lock = await navigator.wakeLock.request('screen'); lock.addEventListener('release', () => lock = null); } } catch (e) {}
 }
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { wake(); if (!S.wsOpen) connect(); } });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') { wake();
+  if (S.mode === 'intiface' && !S.wsOpen) connect();
+  if (S.mode === 'direct' && D.want && !D.ready) directConnect(); } });
 document.addEventListener('pointerdown', wake, { once: true });
 
 /* ---------- setup sheet ---------- */
@@ -735,8 +919,19 @@ $('chipEngine').onclick = $('chipToy').onclick = () => $('sheet').hidden = false
 
 drawSlider();
 log('Starting');
-connect();
-setTimeout(() => { if (!S.ready) $('sheet').hidden = false; }, 2500);
+setMode(store.get('mode', navigator.bluetooth ? 'direct' : 'intiface'));
+if (S.mode === 'direct') {
+  // Chrome may remember the Jive from last time, so it can reconnect without the picker
+  const remembered = navigator.bluetooth && navigator.bluetooth.getDevices ? navigator.bluetooth.getDevices() : Promise.resolve([]);
+  remembered.then(list => {
+    const d = list.find(x => /jive/i.test(x.name || '')) || list[0];
+    if (d) { log('Reconnecting to ' + (d.name || 'the toy')); attachDevice(d); }
+    else $('sheet').hidden = false;
+  }).catch(() => { $('sheet').hidden = false; });
+  setTimeout(() => { if (!D.ready) $('sheet').hidden = false; }, 4000);
+} else {
+  setTimeout(() => { if (!S.ready) $('sheet').hidden = false; }, 2500);
+}
 })();
 </script>
 </body>
